@@ -1,0 +1,90 @@
+import { useState, useEffect } from 'react';
+import { createClient } from '@supabase/supabase-js';
+import './index.css';
+
+// Supabase connection
+const supabase = createClient(
+  'https://vhspzkcaulceueynmyfyv.supabase.co',
+  'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZoc3prY2F1bGNldWV5bm15Znl2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTQ4MTM0NDAsImV4cCI6MjA3MDM4OTQ0MH0.bazJOtokVNFN22tbOv8Jjg4z14vO23_Sue2zswoH1rQ'
+);
+
+export default function App() {
+  const [user, setUser] = useState(null);
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [schedule, setSchedule] = useState([]);
+  const [picks, setPicks] = useState({});
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data }) => setUser(data.user));
+  }, []);
+
+  const signIn = async () => {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email,
+      password
+    });
+    if (error) alert(error.message);
+    else setUser(data.user);
+  };
+
+  const signUp = async () => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password
+    });
+    if (error) alert(error.message);
+    else alert('Check your email for verification.');
+  };
+
+  const fetchSchedule = async () => {
+    const res = await fetch('https://site.api.espn.com/apis/site/v2/sports/football/nfl/scoreboard');
+    const data = await res.json();
+    setSchedule(data.events);
+  };
+
+  useEffect(() => {
+    fetchSchedule();
+  }, []);
+
+  const submitPicks = async () => {
+    const { error } = await supabase.from('picks').insert({
+      user_id: user.id,
+      picks,
+      week: new Date().getWeek()
+    });
+    if (error) alert(error.message);
+    else alert('Picks submitted!');
+  };
+
+  if (!user) {
+    return (
+      <div className="auth-container">
+        <h1>NFL Pick'em</h1>
+        <input placeholder="Email" onChange={e => setEmail(e.target.value)} />
+        <input placeholder="Password" type="password" onChange={e => setPassword(e.target.value)} />
+        <button onClick={signIn}>Sign In</button>
+        <button onClick={signUp}>Sign Up</button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="app">
+      <h1>Welcome, {user.email}</h1>
+      <h2>Week's Games</h2>
+      {schedule.map((game, i) => (
+        <div key={i} className="game">
+          <span>{game.competitions[0].competitors[0].team.displayName}</span> vs
+          <span>{game.competitions[0].competitors[1].team.displayName}</span>
+          <select onChange={e => setPicks({ ...picks, [game.id]: e.target.value })}>
+            <option>Select winner</option>
+            <option value={game.competitions[0].competitors[0].team.displayName}>{game.competitions[0].competitors[0].team.displayName}</option>
+            <option value={game.competitions[0].competitors[1].team.displayName}>{game.competitions[0].competitors[1].team.displayName}</option>
+          </select>
+        </div>
+      ))}
+      <button onClick={submitPicks}>Submit Picks</button>
+    </div>
+  );
+}
